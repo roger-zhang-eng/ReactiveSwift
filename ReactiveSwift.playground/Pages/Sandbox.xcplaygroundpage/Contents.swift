@@ -16,6 +16,45 @@ import Result
 import ReactiveSwift
 import Foundation
 
+class ReactiveSolution1 {
+    
+    private func superSecretFunc(_ text:String, completion: @escaping (() -> Void)) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let diceRoll = Int(arc4random_uniform(99) + 1)
+            usleep(UInt32(diceRoll))
+            print("Ran \(text) on thread \(Thread.current) for \(diceRoll) milliseconds")
+            completion()
+        }
+    }
+    
+    public func runTasks(times times:UInt) {
+        print("Reactive Solution 1 ...")
+        var producers = [SignalProducer<Void, NoError>]()
+        
+        for i in 1...times {
+            let sp = SignalProducer<Void, NoError> { [weak self] (observer, disposable) in
+                let text = String(i)
+                self?.superSecretFunc(text, completion: {
+                    observer.send(value: ())
+                    observer.sendCompleted()
+                })
+            }
+            producers.append(sp)
+        }
+        
+        let fsp = SignalProducer<SignalProducer<Void, NoError>, NoError>(producers)
+        
+        fsp.flatten(.concat)
+            .on(completed: {
+                print("Done!")
+            }, value: {}).start()
+        
+    }
+}
+
+let rso1 = ReactiveSolution1()
+rso1.runTasks(times: 7)
+
 /*:
  ## Sandbox
  
