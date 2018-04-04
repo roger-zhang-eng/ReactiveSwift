@@ -15,52 +15,62 @@
 import Result
 import ReactiveSwift
 import Foundation
+import PlaygroundSupport
 
 class ReactiveSolution1 {
+    var fsp: SignalProducer<SignalProducer<Int, NoError>, NoError>!
     
     private func superSecretFunc(_ text:String, completion: @escaping (() -> Void)) {
-        let concurrentQueue = DispatchQueue(label: "queuename", attributes: .concurrent)
-        
-        concurrentQueue.sync {
-        /*
-        }
         DispatchQueue.global(qos: .userInitiated).async {
-            */
-            let diceRoll = Int(arc4random_uniform(8) + 1)
-            usleep(UInt32(diceRoll * 1000000))
-            print("Ran \(text) on thread \(Thread.current) for \(diceRoll) seconds")
+            let delayValue = Int(arc4random_uniform(15) + 1)
+            print("\(text) on thread \(Thread.current) for delay \(delayValue) units")
+            usleep(UInt32(delayValue) * 500000)
+            
             completion()
         }
     }
     
-    public func runTasks(times times:UInt) {
-        print("Reactive Solution 1 ...")
+    public func runTasks(times:Int) {
+        print("runTasks by \(times) ...")
         var producers = [SignalProducer<Int, NoError>]()
         
         for i in 1...times {
-            let sp = SignalProducer<Int, NoError> { [weak self] (observer, disposable) in
-                let text = String(i)
-                print("Create #\(text) signal.")
-                self?.superSecretFunc(text, completion: {
-                    print("#\(i) send value")
-                    observer.send(value: Int(i * 3))
+            debugPrint("Create #\(i)")
+            let sp = SignalProducer<Int, NoError> { [weak self] observer, disposable in
+                let strongSelf = self!
+                let inputText = "#\(i)"
+                strongSelf.superSecretFunc(inputText) {
+                    let sentValue =  i * 3
+                    debugPrint("#\(i) send value \(sentValue)")
+                    observer.send(value: sentValue)
                     observer.sendCompleted()
-                })
+                }
             }
             producers.append(sp)
         }
         
-        let fsp = SignalProducer<SignalProducer<Int, NoError>, NoError>(producers)
-        var initValue: Int = 0
-        fsp.flatten(.merge)//change from .concat to .merge
-            .observe(on: UIScheduler())
-            .startWithValues { initValue in
-                print("receive #\(initValue)")
-        }
+        self.fsp = SignalProducer<SignalProducer<Int, NoError>, NoError>(producers)
+        
+    }
+    
+    func observeSignals() {
+        // merge will get value once any signal sends, regardless complete.
+        // concat will wait the 1st signal value and complete, then accept 2nd signal value, then one by one
+        // latest will complete if the last SP completes, only get the last value
+        debugPrint("observeSignals begin to observe by merge...")
+        self.fsp.flatten(.merge)
+            .on(completed: {
+                print("observeSignals Done!")
+            }, value: { gotValue in
+                print("observeSignals get value: \(gotValue)")
+            }).start()
     }
 }
 
-let rso1 = ReactiveSolution1()
-rso1.runTasks(times: 3)
+//Avoiding playground execution ends earlier than thread processing, need manually run playground and stop it.
+PlaygroundPage.current.needsIndefiniteExecution = true
 
+let rso1 = ReactiveSolution1()
+rso1.runTasks(times: 5)
+rso1.observeSignals()
 
