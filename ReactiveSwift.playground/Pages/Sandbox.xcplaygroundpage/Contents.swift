@@ -26,7 +26,7 @@ class ReactiveSolutionTest {
     
     private func superSecretFunc(_ text:String, completion: @escaping (() -> Void)) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let delayValue = Int(arc4random_uniform(15) + 1)
+            let delayValue = Int(arc4random_uniform(10) + 1)
             print("\(text) on thread \(Thread.current) for delay \(delayValue) units")
             usleep(UInt32(delayValue) * 500000)
             
@@ -94,15 +94,47 @@ class ReactiveSolutionTest {
 //Avoiding playground execution ends earlier than thread processing, need manually run playground and stop it.
 PlaygroundPage.current.needsIndefiniteExecution = true
 
-let rso1 = ReactiveSolutionTest(times: 5)
+scopedExample("Multiple tasks") {
+    let rso1 = ReactiveSolutionTest(times: 3)
 
-/*
-rso1.producerObserveSignals(strategy: .merge) {
-    debugPrint("producerObserveSignals done")
+    /*
+    rso1.producerObserveSignals(strategy: .merge) {
+        debugPrint("producerObserveSignals done")
+    }
+    */
+
+    rso1.signalObserveSignals(strategy: .merge) {
+        debugPrint("signalObserveSignals done")
+    }
 }
-*/
 
-rso1.signalObserveSignals(strategy: .merge) {
-    debugPrint("signalObserveSignals done")
+sleep(10)
+
+scopedExample("Array split") {
+
+    
+    SignalProducer<[String], NoError> { sink, _ in
+            // incoming data
+            sink.send(value: ["ein", "zwei", "dry"])
+            sink.sendCompleted()
+        }
+        .on( value: { (values) in
+            debugPrint(values)
+            
+        })
+        .start()
+        
+        /*{ (values: [String]) -> SignalProducer<String, NoError> in
+            // split array into single values
+            SignalProducer<String, NoError>(values)
+        }
+        .map { (value: String) -> String in
+            // do some meaningful work on the individual values
+            value + "!"
+        }
+        .collect() // assemble the array again (if you want to)
+        .startWithNext { (values: [String]) in
+            print(values) // prints "ein!", "zwei!", "dry!"
+        }*/
+
 }
-
